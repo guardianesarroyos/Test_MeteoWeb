@@ -1,11 +1,11 @@
-from flask import Flask, request, jsonify, send_file, make_response
+from flask import Flask, request, jsonify, send_file, send_from_directory, make_response
 import os
 import json
 import csv
 from datetime import datetime, timedelta
 from io import BytesIO
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static")
 
 # 📁 Configuración
 DATA_DIR = 'DATA'
@@ -15,13 +15,13 @@ os.makedirs(DATA_DIR, exist_ok=True)
 def append_to_historic_csv(data):
     csv_path = os.path.join(DATA_DIR, "historico_meteo.csv")
     file_exists = os.path.isfile(csv_path)
-    
+
     try:
         with open(csv_path, "a", newline="") as f:
             writer = csv.writer(f)
             if not file_exists:
                 writer.writerow(["timestamp", "cuenca", "servicio", "temp", "rain", "rain24h"])
-            
+
             for cuenca in ["alta", "media", "baja"]:
                 cuenca_data = data.get("historicalData", {}).get(cuenca, {})
                 for servicio in ["openmeteo", "wunderground"]:
@@ -40,7 +40,11 @@ def append_to_historic_csv(data):
 # 💾 Guardar datos diarios
 def save_data(data):
     try:
-        date = datetime.fromisoformat(data['timestamp'])
+        timestamp = data.get('timestamp')
+        if not timestamp:
+            return {'success': False, 'message': 'Falta el campo timestamp'}
+
+        date = datetime.fromisoformat(timestamp)
         filename = f"meteo_{date.year}-{date.month:02d}-{date.day:02d}.json"
         filepath = os.path.join(DATA_DIR, filename)
 
@@ -68,9 +72,9 @@ def load_data():
             'baja': {'openmeteo': [], 'wunderground': [], 'corrected': []}
         }
         correction_factors = {
-            'alta': {'temp': 0, 'rain': 0, 'rain24h': 0, 'count': 0},
-            'media': {'temp': 0, 'rain': 0, 'rain24h': 0, 'count': 0},
-            'baja': {'temp': 0, 'rain': 0, 'rain24h': 0, 'count': 0}
+            'alta': {'temp': 0, 'rain': 0, 'rain24h': 0},
+            'media': {'temp': 0, 'rain': 0, 'rain24h': 0},
+            'baja': {'temp': 0, 'rain': 0, 'rain24h': 0}
         }
 
         for filename in os.listdir(DATA_DIR):
@@ -83,7 +87,6 @@ def load_data():
                                 for service in ['openmeteo', 'wunderground', 'corrected']:
                                     if service in entry['historicalData'][cuenca]:
                                         historical_data[cuenca][service].extend(entry['historicalData'][cuenca][service])
-
                             if cuenca in entry.get('correctionFactors', {}):
                                 for factor in ['temp', 'rain', 'rain24h']:
                                     if factor in entry['correctionFactors'][cuenca]:
@@ -110,8 +113,7 @@ def generate_report(range_str):
         else:
             cutoff = now - timedelta(days=365)
 
-        output = []
-        output.append("Fecha,Hora,Cuenca,Servicio,Temperatura,Lluvia Hoy,Lluvia 24h,Factor Temp,Factor Lluvia,Factor Lluvia24h")
+        output = ["Fecha,Hora,Cuenca,Servicio,Temperatura,Lluvia Hoy,Lluvia 24h,Factor Temp,Factor Lluvia,Factor Lluvia24h"]
 
         for filename in os.listdir(DATA_DIR):
             if filename.startswith('meteo_') and filename.endswith('.json'):
@@ -126,34 +128,31 @@ def generate_report(range_str):
                                     if cuenca in entry.get('historicalData', {}):
                                         factors = entry.get('correctionFactors', {}).get(cuenca, {})
                                         for service in ['openmeteo', 'wunderground', 'corrected']:
-                                            if service in entry['historicalData'][cuenca]:
-                                                for data_point in entry['historicalData'][cuenca][service]:
-                                                    date = datetime.fromisoformat(data_point['timestamp'])
-                                                    fecha_str = date.strftime('%d/%m/%Y')
-                                                    hora_str = date.strftime('%H:%M')
-
-                                                    row = [
-                                                        fecha_str,
-                                                        hora_str,
-                                                        cuenca,
-                                                        service,
-                                                        str(data_point.get('temp', 'N/D')),
-                                                        str(data_point.get('rain', 'N/D')),
-                                                        str(data_point.get('rain24h', 'N/D')),
-                                                        str(factors.get('temp', 0)),
-                                                        str(factors.get('rain', 0)),
-                                                        str(factors.get('rain24h', 0))
-                                                    ]
-                                                    output.append(','.join(row))
+                                            for data_point in entry['historicalData'][cuenca].get(service, []):
+                                                ts = data_point.get('timestamp')
+                                                if not ts:
+                                                    continue
+                                                date = datetime.fromisoformat(ts)
+                                                row = [
+                                                    date.strftime('%d/%m/%Y'),
+                                                    date.strftime('%H:%M'),
+                                                    cuenca,
+                                                    service,
+                                                    str(data_point.get('temp', 'N/D')),
+                                                    str(data_point.get('rain', 'N/D')),
+                                                    str(data_point.get('rain24h', 'N/D')),
+                                                    str(factors.get('temp', 0)),
+                                                    str(factors.get('rain', 0)),
+                                                    str(factors.get('rain24h', 0))
+                                                ]
+                                                output.append(','.join(row))
 
         csv_content = '\n'.join(output).encode('utf-8')
         return BytesIO(csv_content)
     except Exception as e:
         return BytesIO(f"Error generando reporte: {str(e)}".encode('utf-8'))
 
-
 # 🌐 Rutas Flask
-
 @app.route("/status", methods=["GET"])
 def status():
     return jsonify({'success': True, 'status': 'online'})
@@ -169,8 +168,7 @@ def save():
 
 @app.route("/load", methods=["GET"])
 def load():
-    result = load_data()
-    return jsonify(result)
+    return jsonify(load_data())
 
 @app.route("/report", methods=["GET"])
 def report():
@@ -181,7 +179,6 @@ def report():
     response.headers["Content-Type"] = "text/csv"
     return response
 
-# 🚀 Ejecutar localmente (opcional)
 @app.route("/descargar-historico")
 def descargar_historico():
     path = os.path.join(DATA_DIR, "historico_meteo.csv")
@@ -192,7 +189,8 @@ def descargar_historico():
 
 @app.route("/")
 def home():
-    return send_from_directory("static", "index.html")
+    return send_from_directory(app.static_folder, "index.html")
 
+# 🔁 Render ejecuta con Gunicorn, pero esto permite pruebas locales
 if __name__ == "__main__":
-   app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000)
