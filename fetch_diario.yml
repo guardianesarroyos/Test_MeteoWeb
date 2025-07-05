@@ -1,0 +1,35 @@
+name: Captura meteorológica diaria
+
+on:
+  schedule:
+    - cron: '0 9 * * *'   # ejecuta a las 06:00 AM Argentina (UTC+3)
+  workflow_dispatch:      # permite ejecutarlo manualmente desde GitHub
+
+jobs:
+  fetch_and_log:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Instalar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: pip install requests
+
+      - name: Ejecutar script
+        env:
+          WUNDERGROUND_API_KEY: ${{ secrets.WUNDERGROUND_API_KEY }}
+        run: |
+          echo "Usando clave secreta para acceder a Wunderground"
+          python fetch_meteo.py
+
+      - name: Guardar CSV y subir
+        run: |
+          git config --global user.name "auto-bot"
+          git config --global user.email "bot@example.com"
+          git add historico_meteo.csv
+          git commit -m "auto: actualización diaria"
+          git push || echo "Sin cambios nuevos para commitear"
