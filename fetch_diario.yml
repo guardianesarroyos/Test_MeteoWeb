@@ -2,7 +2,7 @@ name: Captura meteorológica diaria
 
 on:
   schedule:
-    - cron: '0 9 * * *'   # ejecuta a las 06:00 AM Argentina (UTC+3)
+    - cron: '0 * * * *'   # ejecuta cada hora en punto (UTC)
   workflow_dispatch:      # permite ejecutarlo manualmente desde GitHub
 
 jobs:
