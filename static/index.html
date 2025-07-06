@@ -403,6 +403,26 @@
     }
 
     // Inicialización
+    async function checkServerStatus() {
+  const statusElement = document.getElementById("estado-servidor");
+  try {
+    const response = await fetch("/status");
+    if (response.ok) {
+      const data = await response.json();
+      if (data.status === "online") {
+        statusElement.textContent = "🟢 Servidor conectado";
+        statusElement.style.color = "green";
+        return true;
+      }
+    }
+    throw new Error("Respuesta inesperada");
+  } catch (error) {
+    statusElement.textContent = "🔴 Servidor desconectado";
+    statusElement.style.color = "red";
+    return false;
+  }
+}
+
     document.addEventListener("DOMContentLoaded", async () => {
       updateTable();
       
@@ -416,6 +436,9 @@
       
       // Actualizar datos
       await updateAll();
+
+      <p id="estado-servidor">⏳ Verificando estado del servidor...</p>
+
       
       // Configurar actualización automática
       setInterval(updateAll, UPDATE_INTERVAL);
