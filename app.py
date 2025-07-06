@@ -191,6 +191,15 @@ def descargar_historico():
 def home():
     return send_from_directory(app.static_folder, "index.html")
 
+@app.route("/update", methods=["GET"])
+def update():
+    try:
+        # 🔧 Aquí deberías integrar la lógica real de captura desde APIs
+        print("Llamada recibida en /update desde GitHub Actions")
+        return jsonify({'success': True, 'message': 'Captura ejecutada (placeholder)'}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 # 🔁 Render ejecuta con Gunicorn, pero esto permite pruebas locales
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
