@@ -207,3 +207,7 @@ def report():
 def descargar_historico():
     path = os.path.join(DATA_DIR, "historico_meteo.csv")
     if os.path.exists(path):
+        return send_file(path, as_attachment=True)
+    else:
+        return "Archivo no encontrado", 404
+
