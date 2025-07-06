@@ -17,23 +17,47 @@ def append_to_historic_csv(data):
     file_exists = os.path.isfile(csv_path)
 
     try:
-        with open(csv_path, "a", newline="") as f:
+        with open(csv_path, "a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             if not file_exists:
-                writer.writerow(["timestamp", "cuenca", "servicio", "temp", "rain", "rain24h"])
+                writer.writerow([
+                    "fecha_hora", "cuenca", "servicio",
+                    "temp", "rain", "rain24h",
+                    "factor_temp", "factor_rain", "factor_rain24h"
+                ])
+
+            timestamp = data.get("timestamp")
+            dt = datetime.fromisoformat(timestamp)
+            fecha_hora = dt.strftime("%d/%m %H:%M")
+
+            correction_factors = data.get("correctionFactors", {})
 
             for cuenca in ["alta", "media", "baja"]:
                 cuenca_data = data.get("historicalData", {}).get(cuenca, {})
-                for servicio in ["openmeteo", "wunderground"]:
+                factors = correction_factors.get(cuenca, {"temp": "", "rain": "", "rain24h": ""})
+
+                for servicio in ["openmeteo", "wunderground", "corrected"]:
                     for punto in cuenca_data.get(servicio, []):
-                        writer.writerow([
-                            punto.get("timestamp", data.get("timestamp")),
+                        row = [
+                            fecha_hora,
                             cuenca,
                             servicio,
                             punto.get("temp", "N/D"),
                             punto.get("rain", "N/D"),
-                            punto.get("rain24h", "N/D")
-                        ])
+                            punto.get("rain24h", "N/D"),
+                        ]
+
+                        # Solo agregamos factores en la fila "corrected"
+                        if servicio == "corrected":
+                            row += [
+                                factors.get("temp", ""),
+                                factors.get("rain", ""),
+                                factors.get("rain24h", "")
+                            ]
+                        else:
+                            row += ["", "", ""]
+
+                        writer.writerow(row)
     except Exception as e:
         print(f"Error escribiendo en CSV histórico: {e}")
 
@@ -50,12 +74,12 @@ def save_data(data):
 
         existing = []
         if os.path.exists(filepath):
-            with open(filepath, 'r') as f:
+            with open(filepath, 'r', encoding='utf-8') as f:
                 existing = json.load(f)
 
         existing.append(data)
 
-        with open(filepath, 'w') as f:
+        with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(existing, f, indent=2)
 
         append_to_historic_csv(data)
@@ -79,7 +103,7 @@ def load_data():
 
         for filename in os.listdir(DATA_DIR):
             if filename.startswith('meteo_') and filename.endswith('.json'):
-                with open(os.path.join(DATA_DIR, filename), 'r') as f:
+                with open(os.path.join(DATA_DIR, filename), 'r', encoding='utf-8') as f:
                     day_data = json.load(f)
                     for entry in day_data:
                         for cuenca in ['alta', 'media', 'baja']:
@@ -119,7 +143,7 @@ def generate_report(range_str):
             if filename.startswith('meteo_') and filename.endswith('.json'):
                 file_date = datetime.strptime(filename[6:16], '%Y-%m-%d')
                 if file_date.date() >= cutoff.date():
-                    with open(os.path.join(DATA_DIR, filename), 'r') as f:
+                    with open(os.path.join(DATA_DIR, filename), 'r', encoding='utf-8') as f:
                         day_data = json.load(f)
                         for entry in day_data:
                             entry_date = datetime.fromisoformat(entry['timestamp'])
@@ -141,9 +165,9 @@ def generate_report(range_str):
                                                     str(data_point.get('temp', 'N/D')),
                                                     str(data_point.get('rain', 'N/D')),
                                                     str(data_point.get('rain24h', 'N/D')),
-                                                    str(factors.get('temp', 0)),
-                                                    str(factors.get('rain', 0)),
-                                                    str(factors.get('rain24h', 0))
+                                                    str(factors.get('temp', 0)) if service == 'corrected' else '',
+                                                    str(factors.get('rain', 0)) if service == 'corrected' else '',
+                                                    str(factors.get('rain24h', 0)) if service == 'corrected' else ''
                                                 ]
                                                 output.append(','.join(row))
 
@@ -183,23 +207,3 @@ def report():
 def descargar_historico():
     path = os.path.join(DATA_DIR, "historico_meteo.csv")
     if os.path.exists(path):
-        return send_file(path, as_attachment=True)
-    else:
-        return "Archivo no encontrado", 404
-
-@app.route("/")
-def home():
-    return send_from_directory(app.static_folder, "index.html")
-
-@app.route("/update", methods=["GET"])
-def update():
-    try:
-        # 🔧 Aquí deberías integrar la lógica real de captura desde APIs
-        print("Llamada recibida en /update desde GitHub Actions")
-        return jsonify({'success': True, 'message': 'Captura ejecutada (placeholder)'}), 200
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-# 🔁 Render ejecuta con Gunicorn, pero esto permite pruebas locales
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
