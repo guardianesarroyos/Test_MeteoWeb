@@ -15,7 +15,7 @@ cuencas = {
     "baja": {"name": "Escobar", "lat": -34.336, "lon": -58.715, "station": "IINGEN39"}
 }
 
-# 🔑 API de Wunderground
+# 🔑 API de Wunderground (clave directa para asegurar conectividad)
 WUNDERGROUND_API_KEY = "6532d6454b8aa370768e63d6ba5a832e"
 
 # 🌤️ Función para consultar Open-Meteo
