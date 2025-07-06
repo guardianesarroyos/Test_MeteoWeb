@@ -19,6 +19,11 @@ jobs:
       - name: Instalar dependencias
         run: pip install requests
 
+      - name: Crear archivo config.js con la API key
+        run: |
+          mkdir -p static
+          echo 'window.apiKeys = { wunderground: "${{ secrets.WUNDERGROUND_API_KEY }}" };' > static/config.js
+
       - name: Ejecutar script
         env:
           WUNDERGROUND_API_KEY: ${{ secrets.WUNDERGROUND_API_KEY }}
