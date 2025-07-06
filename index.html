@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>MONITOR METEOROLÓGICO INTELIGENTE</title>
+  <style>
+    body {
+      background-color: #111;
+      color: #00d4ff;
+      font-family: sans-serif;
+      padding: 1rem;
+    }
+    h1, h2, h3, h4 {
+      color: #00d4ff;
+      text-align: center;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+    th, td {
+      border: 1px solid #00d4ff;
+      padding: 0.5rem;
+      text-align: center;
+    }
+    th {
+      background-color: #003366;
+    }
+    .btn {
+      background-color: #003366;
+      color: #00d4ff;
+      border: 1px solid #00d4ff;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      margin: 0.5rem;
+      border-radius: 4px;
+    }
+    .btn:hover {
+      background-color: #004080;
+    }
+    .btn-container {
+      text-align: center;
+      margin: 1rem 0;
+    }
+    .loading { color: #888; }
+    .error { color: #ff5555; }
+    .coordinates {
+      font-size: 0.8rem;
+      color: #bbb;
+    }
+    .analysis-result {
+      background-color: #002240;
+      padding: 1rem;
+      margin: 1rem 0;
+      border: 1px solid #00d4ff;
+    }
+    .factor-correccion {
+      color: #ffd700;
+      font-weight: bold;
+    }
+    .time-range-btns {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 15px 0;
+      flex-wrap: wrap;
+    }
+    .time-range-btn {
+      padding: 8px 12px;
+      background: #003366;
+      color: #00d4ff;
+      border: 1px solid #00d4ff;
+      border-radius: 4px;
+      cursor: pointer;
+      min-width: 120px;
+    }
+    .time-range-btn:hover {
+      background-color: #004080;
+    }
+    .server-info {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #bbb;
+      margin-top: 10px;
+    }
+    .status-indicator {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+    }
+    .status-online {
+      background-color: #00ff00;
+    }
+    .status-offline {
+      background-color: #ff0000;
+    }
+  </style>
+  <script src="/static/config.js"></script>
+
+</head>
+<body>
+  <h1>MONITOR METEOROLÓGICO "Z" INTELIGENTE</h1>
+  <h2>Comparación Wunderground vs Open-Meteo</h2>
+  
+  <div id="server-status" class="server-info">
+    <span id="status-indicator" class="status-indicator status-offline"></span>
+    <span id="status-text">Conectando al servidor...</span>
+  </div>
+  
+  <div id="last-updated" class="btn-container">
+    Última actualización: Cargando...
+    <button class="btn" id="manual-refresh">Actualizar Datos</button>
+  </div>
+  
+  <div id="data-section"></div>
+  
+  <div class="btn-container">
+    <button class="btn" onclick="exportToCSV()">Descargar CSV Completo</button>
+    <button class="btn" onclick="calcularCorreccionPorFranjaHoraria()">Calcular Factores por Franja Horaria</button>
+    <button class="btn" onclick="exportar72hs()">⬇️ Descargar últimos 3 días (72 hs)</button>
+
+  </div>
+  
+    <div id="analysis-results" class="analysis-result">
+    <p>Presione los botones para exportar datos o calcular correcciones por franja horaria.</p>
+  </div>
+  
+  <script>
+    // Configuración
+    const SERVER_ENDPOINT = 'meteo_data.py';
+    const UPDATE_INTERVAL = 60 * 60 * 1000; // 1 hora
+    
+    // Estructuras de datos
+    const cuencas = {
+      alta: { name: "Cuenca Alta - Pilar", lat: -34.455, lon: -58.859, station: "IPILAR8" },
+      media: { name: "Cuenca Media - Maschwitz", lat: -34.386, lon: -58.767, station: "IINGEN19" },
+      baja: { name: "Cuenca Baja - Escobar", lat: -34.336, lon: -58.715, station: "IINGEN39" }
+    };
+
+    let historicalData = {
+      alta: { openmeteo: [], wunderground: [], corrected: [] },
+      media: { openmeteo: [], wunderground: [], corrected: [] },
+      baja: { openmeteo: [], wunderground: [], corrected: [] }
+    };
+
+    let correctionFactors = {
+      alta: { temp: 0, rain: 0, rain24h: 0, count: 0 },
+      media: { temp: 0, rain: 0, rain24h: 0, count: 0 },
+      baja: { temp: 0, rain: 0, rain24h: 0, count: 0 }
+    };
+
+    // Funciones auxiliares
+    function formatDate(date) {
+      return date.toLocaleString('es-AR');
+    }
+
+    function updateLastUpdated() {
+      document.getElementById('last-updated').innerHTML =
+        `Última actualización: ${formatDate(new Date())}
+        <button class="btn" id="manual-refresh">Actualizar Datos</button>`;
+      document.getElementById('manual-refresh').onclick = updateAll;
+    }
+
+    function updateTable() {
+      let html = "";
+      Object.entries(cuencas).forEach(([key, cuenca]) => {
+        html += `
+          <h2>${cuenca.name} <span class="coordinates">(${cuenca.lat}, ${cuenca.lon})</span></h2>
+          <table>
+            <thead><tr>
+              <th>Servicio</th><th>Temperatura (°C)</th><th>Lluvia Hoy (mm)</th><th>Lluvia 24h (mm)</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>Open-Meteo</td><td id="${key}-om-temp">Cargando...</td><td id="${key}-om-rain">-</td><td id="${key}-om-rain24">-</td></tr>
+              <tr><td>Wunderground</td><td id="${key}-wg-temp">Cargando...</td><td id="${key}-wg-rain">-</td><td id="${key}-wg-rain24">-</td></tr>
+              <tr><td>Open-Meteo Corregido</td><td id="${key}-corr-temp">-</td><td id="${key}-corr-rain">-</td><td id="${key}-corr-rain24">-</td></tr>
+              <tr class="factor-correccion"><td>Factor de Corrección</td><td id="${key}-factor-temp">-</td><td id="${key}-factor-rain">-</td><td id="${key}-factor-rain24">-</td></tr>
+            </tbody>
+          </table>
+        `;
+      });
+      document.getElementById("data-section").innerHTML = html;
+    }
+
+    // Funciones de API
+    async function getOpenMeteo(lat, lon) {
+      try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=precipitation&current=temperature_2m,precipitation&timezone=auto`);
+        const data = await res.json();
+        return {
+          temp: data.current.temperature_2m,
+          rain: data.current.precipitation,
+          rain24h: data.hourly.precipitation.slice(0, 24).reduce((a, b) => a + b, 0)
+        };
+      } catch {
+        return { temp: null, rain: null, rain24h: null };
+      }
+    }
+
+    async function getWunderground(stationId) {
+      try {
+        const url = `https://api.weather.com/v2/pws/observations/current?stationId=${stationId}&format=json&units=m&apiKey=${window.apiKeys.wunderground}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const obs = data.observations[0];
+        return {
+          temp: obs.metric.temp,
+          rain: obs.metric.precipTotal,
+          rain24h: obs.metric.precipRate ? obs.metric.precipRate * 24 : 0
+        };
+      } catch {
+        return { temp: null, rain: null, rain24h: null };
+      }
+    }
+
+    function updateCell(id, value) {
+      const el = document.getElementById(id);
+      el.textContent = value !== null && value !== undefined ? value.toFixed(1) : "N/D";
+    }
+
+    // Funciones de comunicación con el servidor
+    async function checkServerStatus() {
+      try {
+        const response = await fetch(SERVER_ENDPOINT + '?action=status');
+        if (response.ok) {
+          document.getElementById('status-indicator').className = 'status-indicator status-online';
+          document.getElementById('status-text').textContent = 'Conectado al servidor';
+          return true;
+        }
+      } catch (error) {
+        console.error('Error checking server status:', error);
+      }
+      document.getElementById('status-indicator').className = 'status-indicator status-offline';
+      document.getElementById('status-text').textContent = 'Servidor no disponible - Modo local';
+      return false;
+    }
+
+    async function loadDataFromServer() {
+      try {
+        const response = await fetch(SERVER_ENDPOINT + '?action=load');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            historicalData = data.historicalData || historicalData;
+            correctionFactors = data.correctionFactors || correctionFactors;
+            console.log('Datos cargados desde el servidor');
+          }
+        }
+      } catch (error) {
+        console.error('Error loading data from server:', error);
+      }
+    }
+
+    async function saveDataToServer() {
+      try {
+        const dataToSave = {
+          timestamp: new Date().toISOString(),
+          historicalData: historicalData,
+          correctionFactors: correctionFactors
+        };
+        
+        const response = await fetch(SERVER_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dataToSave)
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (!result.success) {
+            console.error('Error al guardar en servidor:', result.message);
+          }
+        }
+      } catch (error) {
+        console.error('Error saving to server:', error);
+      }
+    }
+    
+    // Funciones principales
+    async function updateAll() {
+      updateLastUpdated();
+      const now = new Date();
+
+      for (const [key, cuenca] of Object.entries(cuencas)) {
+        const om = await getOpenMeteo(cuenca.lat, cuenca.lon);
+        const wg = await getWunderground(cuenca.station);
+
+        updateCell(`${key}-om-temp`, om.temp);
+        updateCell(`${key}-om-rain`, om.rain);
+        updateCell(`${key}-om-rain24`, om.rain24h);
+
+        updateCell(`${key}-wg-temp`, wg.temp);
+        updateCell(`${key}-wg-rain`, wg.rain);
+        updateCell(`${key}-wg-rain24`, wg.rain24h);
+
+        const delta = {
+          temp: wg.temp - om.temp,
+          rain: wg.rain - om.rain,
+          rain24h: wg.rain24h - om.rain24h
+        };
+
+        const alpha = 0.2;
+        const f = correctionFactors[key];
+        f.temp = alpha * delta.temp + (1 - alpha) * f.temp;
+        f.rain = alpha * delta.rain + (1 - alpha) * f.rain;
+        f.rain24h = alpha * delta.rain24h + (1 - alpha) * f.rain24h;
+        f.count++;
+
+        const corr = {
+          temp: om.temp + f.temp,
+          rain: om.rain + f.rain,
+          rain24h: om.rain24h + f.rain24h
+        };
+
+        updateCell(`${key}-corr-temp`, corr.temp);
+        updateCell(`${key}-corr-rain`, corr.rain);
+        updateCell(`${key}-corr-rain24`, corr.rain24h);
+
+        updateCell(`${key}-factor-temp`, f.temp);
+        updateCell(`${key}-factor-rain`, f.rain);
+        updateCell(`${key}-factor-rain24`, f.rain24h);
+
+        historicalData[key].openmeteo.push({ timestamp: now, ...om });
+        historicalData[key].wunderground.push({ timestamp: now, ...wg });
+        historicalData[key].corrected.push({ timestamp: now, ...corr });
+      }
+      
+      // Guardar en servidor
+      await saveDataToServer();
+    }
+
+   function exportToCSV() {
+  const link = document.createElement("a");
+  link.href = "/report?range=last-month"; // Podés cambiar "last-month" por "today", "last-week", etc.
+  link.download = "historico_meteo.csv";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+
+    function exportar72hs() {
+  const ahora = new Date();
+  const hace72hs = new Date(ahora.getTime() - 72 * 60 * 60 * 1000);
+  let csv = "timestamp,cuenca,servicio,temp,rain,rain24h\n";
+
+  Object.entries(historicalData).forEach(([cuenca, servicios]) => {
+    Object.entries(servicios).forEach(([servicio, entradas]) => {
+      entradas.forEach(row => {
+        const t = new Date(row.timestamp);
+        if (t >= hace72hs && t <= ahora) {
+          csv += `${row.timestamp},${cuenca},${servicio},${row.temp},${row.rain},${row.rain24h}\n`;
+        }
+      });
+    });
+
+    const f = correctionFactors[cuenca];
+    csv += `${ahora.toISOString()},${cuenca},Factor de Corrección,${f.temp.toFixed(2)},${f.rain.toFixed(2)},${f.rain24h.toFixed(2)}\n`;
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "historico_meteo_72hs.csv";
+  link.click();
+}
+    function calcularCorreccionPorFranjaHoraria() {
+      const franjas = [
+        { inicio: 0, fin: 6 },
+        { inicio: 6, fin: 12 },
+        { inicio: 12, fin: 18 },
+        { inicio: 18, fin: 24 }
+      ];
+
+      let html = "<h3>Factores de Corrección por Franja Horaria</h3>";
+
+      Object.entries(historicalData).forEach(([cuenca, servicios]) => {
+        html += `<h4>${cuencas[cuenca].name}</h4><table><tr><th>Franja</th><th>Δ Temp</th><th>Δ Lluvia</th><th>Δ Lluvia 24h</th><th>Muestras</th></tr>`;
+
+        franjas.forEach(f => {
+          let d = { temp: 0, rain: 0, rain24h: 0, count: 0 };
+          for (let i = 0; i < servicios.wunderground.length; i++) {
+            const t = new Date(servicios.wunderground[i].timestamp).getHours();
+            if (t >= f.inicio && t < f.fin) {
+              d.temp += servicios.wunderground[i].temp - servicios.openmeteo[i].temp;
+              d.rain += servicios.wunderground[i].rain - servicios.openmeteo[i].rain;
+              d.rain24h += servicios.wunderground[i].rain24h - servicios.openmeteo[i].rain24h;
+              d.count++;
+            }
+          }
+          if (d.count > 0) {
+            html += `<tr><td>${f.inicio}-${f.fin} h</td><td>${(d.temp / d.count).toFixed(2)}</td><td>${(d.rain / d.count).toFixed(2)}</td><td>${(d.rain24h / d.count).toFixed(2)}</td><td>${d.count}</td></tr>`;
+          }
+        });
+
+        html += "</table>";
+      });
+
+      document.getElementById("analysis-results").innerHTML = html;
+    }
+
+    // Inicialización
+    async function checkServerStatus() {
+  const statusElement = document.getElementById("estado-servidor");
+  try {
+    const response = await fetch("/status");
+    if (response.ok) {
+      const data = await response.json();
+      if (data.status === "online") {
+        statusElement.textContent = "🟢 Servidor conectado";
+        statusElement.style.color = "green";
+        return true;
+      }
+    }
+    throw new Error("Respuesta inesperada");
+  } catch (error) {
+    statusElement.textContent = "🔴 Servidor desconectado";
+    statusElement.style.color = "red";
+    return false;
+  }
+}
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      updateTable();
+      
+      // Verificar estado del servidor
+      const serverOnline = await checkServerStatus();
+      
+      // Cargar datos desde el servidor si está disponible
+      if (serverOnline) {
+        await loadDataFromServer();
+      }
+      
+      // Actualizar datos
+      await updateAll();
+
+      <p id="estado-servidor">⏳ Verificando estado del servidor...</p>
+
+      
+      // Configurar actualización automática
+      setInterval(updateAll, UPDATE_INTERVAL);
+    });
+  </script>
+</body>
+</html>
