@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>MONITOR METEOROLÓGICO INTELIGENTE</title>
   <style>
     body {
@@ -80,7 +80,7 @@
     }
     .server-info {
       text-align: center;
-      font-size: 0.8rem;
+      font-size: 0.9rem;
       color: #bbb;
       margin-top: 10px;
     }
@@ -98,41 +98,39 @@
       background-color: #ff0000;
     }
   </style>
-  <script src="/static/config.js"></script>
-
+  <script src="./config.js"></script>
 </head>
 <body>
   <h1>MONITOR METEOROLÓGICO "Z" INTELIGENTE</h1>
   <h2>Comparación Wunderground vs Open-Meteo</h2>
-  
+
   <div id="server-status" class="server-info">
     <span id="status-indicator" class="status-indicator status-offline"></span>
-    <span id="status-text">Conectando al servidor...</span>
+    <span id="status-text">⏳ Verificando estado del servidor...</span>
   </div>
-  
+
   <div id="last-updated" class="btn-container">
     Última actualización: Cargando...
     <button class="btn" id="manual-refresh">Actualizar Datos</button>
   </div>
-  
+
   <div id="data-section"></div>
-  
+
   <div class="btn-container">
     <button class="btn" onclick="exportToCSV()">Descargar CSV Completo</button>
     <button class="btn" onclick="calcularCorreccionPorFranjaHoraria()">Calcular Factores por Franja Horaria</button>
     <button class="btn" onclick="exportar72hs()">⬇️ Descargar últimos 3 días (72 hs)</button>
-
   </div>
-  
-    <div id="analysis-results" class="analysis-result">
+
+  <div id="analysis-results" class="analysis-result">
     <p>Presione los botones para exportar datos o calcular correcciones por franja horaria.</p>
   </div>
-  
+
   <script>
     // Configuración
     const SERVER_ENDPOINT = 'meteo_data.py';
     const UPDATE_INTERVAL = 60 * 60 * 1000; // 1 hora
-    
+
     // Estructuras de datos
     const cuencas = {
       alta: { name: "Cuenca Alta - Pilar", lat: -34.455, lon: -58.859, station: "IPILAR8" },
@@ -185,7 +183,11 @@
       document.getElementById("data-section").innerHTML = html;
     }
 
-    // Funciones de API
+    function updateCell(id, value) {
+      const el = document.getElementById(id);
+      el.textContent = value !== null && value !== undefined ? value.toFixed(1) : "N/D";
+    }
+
     async function getOpenMeteo(lat, lon) {
       try {
         const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=precipitation&current=temperature_2m,precipitation&timezone=auto`);
@@ -216,26 +218,25 @@
       }
     }
 
-    function updateCell(id, value) {
-      const el = document.getElementById(id);
-      el.textContent = value !== null && value !== undefined ? value.toFixed(1) : "N/D";
-    }
-
-    // Funciones de comunicación con el servidor
     async function checkServerStatus() {
+      const statusElement = document.getElementById("status-text");
+      const indicator = document.getElementById("status-indicator");
       try {
-        const response = await fetch(SERVER_ENDPOINT + '?action=status');
+        const response = await fetch("/status");
         if (response.ok) {
-          document.getElementById('status-indicator').className = 'status-indicator status-online';
-          document.getElementById('status-text').textContent = 'Conectado al servidor';
-          return true;
+          const data = await response.json();
+          if (data.status === "online") {
+            statusElement.textContent = "🟢 Servidor conectado";
+            indicator.className = "status-indicator status-online";
+            return true;
+          }
         }
+        throw new Error("Respuesta inesperada");
       } catch (error) {
-        console.error('Error checking server status:', error);
+        statusElement.textContent = "🔴 Servidor desconectado";
+        indicator.className = "status-indicator status-offline";
+        return false;
       }
-      document.getElementById('status-indicator').className = 'status-indicator status-offline';
-      document.getElementById('status-text').textContent = 'Servidor no disponible - Modo local';
-      return false;
     }
 
     async function loadDataFromServer() {
@@ -278,8 +279,6 @@
         console.error('Error saving to server:', error);
       }
     }
-    
-    // Funciones principales
     async function updateAll() {
       updateLastUpdated();
       const now = new Date();
@@ -327,46 +326,45 @@
         historicalData[key].wunderground.push({ timestamp: now, ...wg });
         historicalData[key].corrected.push({ timestamp: now, ...corr });
       }
-      
-      // Guardar en servidor
+
       await saveDataToServer();
     }
 
-   function exportToCSV() {
-  const link = document.createElement("a");
-  link.href = "/report?range=last-month"; // Podés cambiar "last-month" por "today", "last-week", etc.
-  link.download = "historico_meteo.csv";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
+    function exportToCSV() {
+      const link = document.createElement("a");
+      link.href = "/report?range=last-month";
+      link.download = "historico_meteo.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
 
     function exportar72hs() {
-  const ahora = new Date();
-  const hace72hs = new Date(ahora.getTime() - 72 * 60 * 60 * 1000);
-  let csv = "timestamp,cuenca,servicio,temp,rain,rain24h\n";
+      const ahora = new Date();
+      const hace72hs = new Date(ahora.getTime() - 72 * 60 * 60 * 1000);
+      let csv = "timestamp,cuenca,servicio,temp,rain,rain24h\n";
 
-  Object.entries(historicalData).forEach(([cuenca, servicios]) => {
-    Object.entries(servicios).forEach(([servicio, entradas]) => {
-      entradas.forEach(row => {
-        const t = new Date(row.timestamp);
-        if (t >= hace72hs && t <= ahora) {
-          csv += `${row.timestamp},${cuenca},${servicio},${row.temp},${row.rain},${row.rain24h}\n`;
-        }
+      Object.entries(historicalData).forEach(([cuenca, servicios]) => {
+        Object.entries(servicios).forEach(([servicio, entradas]) => {
+          entradas.forEach(row => {
+            const t = new Date(row.timestamp);
+            if (t >= hace72hs && t <= ahora) {
+              csv += `${row.timestamp},${cuenca},${servicio},${row.temp},${row.rain},${row.rain24h}\n`;
+            }
+          });
+        });
+
+        const f = correctionFactors[cuenca];
+        csv += `${ahora.toISOString()},${cuenca},Factor de Corrección,${f.temp.toFixed(2)},${f.rain.toFixed(2)},${f.rain24h.toFixed(2)}\n`;
       });
-    });
 
-    const f = correctionFactors[cuenca];
-    csv += `${ahora.toISOString()},${cuenca},Factor de Corrección,${f.temp.toFixed(2)},${f.rain.toFixed(2)},${f.rain24h.toFixed(2)}\n`;
-  });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "historico_meteo_72hs.csv";
+      link.click();
+    }
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "historico_meteo_72hs.csv";
-  link.click();
-}
     function calcularCorreccionPorFranjaHoraria() {
       const franjas = [
         { inicio: 0, fin: 6 },
@@ -403,44 +401,16 @@
     }
 
     // Inicialización
-    async function checkServerStatus() {
-  const statusElement = document.getElementById("estado-servidor");
-  try {
-    const response = await fetch("/status");
-    if (response.ok) {
-      const data = await response.json();
-      if (data.status === "online") {
-        statusElement.textContent = "🟢 Servidor conectado";
-        statusElement.style.color = "green";
-        return true;
-      }
-    }
-    throw new Error("Respuesta inesperada");
-  } catch (error) {
-    statusElement.textContent = "🔴 Servidor desconectado";
-    statusElement.style.color = "red";
-    return false;
-  }
-}
-
     document.addEventListener("DOMContentLoaded", async () => {
       updateTable();
-      
-      // Verificar estado del servidor
+
       const serverOnline = await checkServerStatus();
-      
-      // Cargar datos desde el servidor si está disponible
+
       if (serverOnline) {
         await loadDataFromServer();
       }
-      
-      // Actualizar datos
+
       await updateAll();
-
-      <p id="estado-servidor">⏳ Verificando estado del servidor...</p>
-
-      
-      // Configurar actualización automática
       setInterval(updateAll, UPDATE_INTERVAL);
     });
   </script>
