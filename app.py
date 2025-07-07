@@ -317,3 +317,38 @@ def verificar_backup():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+
+@app.route("/post-datos-desde-google", methods=["POST"])
+def post_datos_desde_google():
+    try:
+        now = datetime.now().isoformat()
+        data = {
+            "timestamp": now,
+            "historicalData": {
+                "alta": {
+                    "openmeteo": [{"temp": 12.5, "rain": 2.0, "rain24h": 5.0}],
+                    "wunderground": [{"temp": 13.0, "rain": 2.2, "rain24h": 5.3}],
+                    "corrected": [{"temp": 12.8, "rain": 2.1, "rain24h": 5.1}]
+                },
+                "media": {
+                    "openmeteo": [{"temp": 11.0, "rain": 1.8, "rain24h": 4.5}],
+                    "wunderground": [{"temp": 11.3, "rain": 1.9, "rain24h": 4.7}],
+                    "corrected": [{"temp": 11.2, "rain": 1.85, "rain24h": 4.6}]
+                },
+                "baja": {
+                    "openmeteo": [{"temp": 10.5, "rain": 1.5, "rain24h": 4.0}],
+                    "wunderground": [{"temp": 10.8, "rain": 1.6, "rain24h": 4.2}],
+                    "corrected": [{"temp": 10.7, "rain": 1.55, "rain24h": 4.1}]
+                }
+            },
+            "correctionFactors": {
+                "alta": {"temp": 0.5, "rain": 0.1, "rain24h": 0.2},
+                "media": {"temp": 0.4, "rain": 0.1, "rain24h": 0.2},
+                "baja": {"temp": 0.3, "rain": 0.1, "rain24h": 0.2}
+            }
+        }
+
+        save_data(data)
+        return jsonify({"success": True, "message": "Datos simulados guardados correctamente"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
