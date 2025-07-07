@@ -1,0 +1,15 @@
+name: Captura horaria de datos meteo
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Ejecutar cada hora
+  workflow_dispatch:     # Permite ejecutarlo manualmente también
+
+jobs:
+  ping-render-app:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Llamar a la app Flask en Render
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" https://test-meteoweb.onrender.com/update
