@@ -177,11 +177,6 @@ def generate_report(range_str):
     except Exception as e:
         return BytesIO(f"Error generando reporte: {str(e)}".encode('utf-8'))
 
-# 🔡 Conversión ASCII a texto
-def ascii_to_text(ascii_string):
-    ascii_values = [int(x) for x in ascii_string.strip().split(',')]
-    return ''.join(chr(x) for x in ascii_values)
-
 # 🌐 Rutas Flask
 @app.route("/status", methods=["GET"])
 def status():
@@ -228,35 +223,6 @@ def update():
         data = fetch_and_process_data()
         result = save_data(data)
         return jsonify(result)
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-@app.route("/ascii-to-excel", methods=["POST"])
-def ascii_to_excel():
-    try:
-        ascii_data = request.data.decode('utf-8')
-        lines = ascii_data.strip().split('\n')
-        decoded_rows = [ascii_to_text(line).split(',') for line in lines]
-
-        if not decoded_rows:
-            return jsonify({'success': False, 'message': 'No se encontraron datos'})
-
-        headers = decoded_rows[0]
-        data = decoded_rows[1:]
-
-        df = pd.DataFrame(data, columns=headers)
-
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False)
-
-        output.seek(0)
-        return send_file(
-            output,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            as_attachment=True,
-            download_name='datos_convertidos.xlsx'
-        )
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
