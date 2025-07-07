@@ -245,6 +245,10 @@ def ascii_to_excel():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
+@app.route("/")
+def home():
+    return "✅ MeteoWeb está corriendo correctamente"
+
 # 🚀 Ejecutar servidor
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
