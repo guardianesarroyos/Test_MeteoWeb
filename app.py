@@ -11,10 +11,11 @@ app = Flask(__name__, static_folder="static")
 # 📁 Configuración
 DATA_DIR = 'DATA'
 os.makedirs(DATA_DIR, exist_ok=True)
+HISTORICO_CSV = "historico_meteo.csv"  # Nombre centralizado del archivo
 
 # 💾 Guardar en CSV histórico
 def append_to_historic_csv(data):
-    csv_path = os.path.join(DATA_DIR, "historico_meteo.csv")
+    csv_path = os.path.join(DATA_DIR, HISTORICO_CSV)
     file_exists = os.path.isfile(csv_path)
 
     try:
@@ -210,7 +211,7 @@ def report():
 
 @app.route("/descargar-historico")
 def descargar_historico():
-    path = os.path.join(DATA_DIR, "historico_meteo.csv")
+    path = os.path.join(DATA_DIR, HISTORICO_CSV)
     if os.path.exists(path):
         return send_file(path, as_attachment=True)
     else:
@@ -229,7 +230,6 @@ def update():
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
-
 
 @app.route("/ascii-to-excel", methods=["POST"])
 def ascii_to_excel():
@@ -260,9 +260,58 @@ def ascii_to_excel():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
-@app.route("/")
-def home():
-    return "✅ MeteoWeb está corriendo correctamente"
+# ==============================================
+# 🔄 NUEVOS ENDPOINTS PARA ALMACENAMIENTO EXTERNO
+# ==============================================
+
+@app.route("/backup-historico", methods=["GET"])
+def backup_historico():
+    """Endpoint optimizado para Google Script"""
+    try:
+        csv_path = os.path.join(DATA_DIR, HISTORICO_CSV)
+        
+        # Verificar si el archivo existe y tiene contenido
+        if not os.path.exists(csv_path):
+            return jsonify({"success": False, "message": "Archivo histórico no encontrado"}), 404
+            
+        if os.path.getsize(csv_path) == 0:
+            return jsonify({"success": False, "message": "Archivo histórico vacío"}), 400
+            
+        # Enviar con nombre consistente y timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        return send_file(
+            csv_path,
+            as_attachment=True,
+            download_name=f"meteo_backup_{timestamp}.csv",
+            mimetype="text/csv"
+        )
+        
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/verificar-backup", methods=["GET"])
+def verificar_backup():
+    """Para diagnóstico del sistema de backup"""
+    csv_path = os.path.join(DATA_DIR, HISTORICO_CSV)
+    
+    if not os.path.exists(csv_path):
+        return jsonify({
+            "success": False,
+            "exists": False,
+            "message": "Archivo histórico no encontrado"
+        }), 404
+        
+    stats = {
+        "success": True,
+        "exists": True,
+        "size_kb": round(os.path.getsize(csv_path) / 1024, 2),
+        "last_modified": datetime.fromtimestamp(
+            os.path.getmtime(csv_path)
+        ).isoformat(),
+        "lines": sum(1 for _ in open(csv_path, 'r', encoding='utf-8'))
+    }
+    
+    return jsonify(stats)
 
 # 🚀 Ejecutar servidor
 if __name__ == "__main__":
