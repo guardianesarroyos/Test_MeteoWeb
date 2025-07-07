@@ -15,10 +15,10 @@ cuencas = {
     "baja": {"name": "Escobar", "lat": -34.336, "lon": -58.715, "station": "IINGEN39"}
 }
 
-# 🔑 API de Wunderground (clave directa para asegurar conectividad)
+# 🔑 API de Wunderground
 WUNDERGROUND_API_KEY = "6532d6454b8aa370768e63d6ba5a832e"
 
-# 🌤️ Función para consultar Open-Meteo
+# 🌤️ Consulta Open-Meteo
 def fetch_openmeteo(lat, lon):
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=precipitation&current=temperature_2m,precipitation&timezone=auto"
     try:
@@ -34,7 +34,7 @@ def fetch_openmeteo(lat, lon):
         print(f"[OpenMeteo] Error: {e}")
         return {"temp": None, "rain": None, "rain24h": None}
 
-# 🌧️ Función para consultar Wunderground
+# 🌧️ Consulta Wunderground
 def fetch_wunderground(station_id):
     url = f"https://api.weather.com/v2/pws/observations/current?stationId={station_id}&format=json&units=m&apiKey={WUNDERGROUND_API_KEY}"
     try:
@@ -51,31 +51,46 @@ def fetch_wunderground(station_id):
         print(f"[Wunderground] Error: {e}")
         return {"temp": None, "rain": None, "rain24h": None}
 
-# 💾 Guardar en CSV
-def append_csv(filename, fila):
-    file_exists = os.path.isfile(filename)
-    with open(filename, "a", newline="") as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(["timestamp", "cuenca", "servicio", "temp", "rain", "rain24h"])
-        writer.writerow(fila)
-
-# 🚀 Ejecución principal
-def main():
+# 🧠 Función para usar desde Flask
+def fetch_and_process_data():
     now = datetime.utcnow().isoformat()
+    data = {
+        "timestamp": now,
+        "historicalData": {"alta": {}, "media": {}, "baja": {}},
+        "correctionFactors": {
+            "alta": {"temp": 0.0, "rain": 0.0, "rain24h": 0.0},
+            "media": {"temp": 0.0, "rain": 0.0, "rain24h": 0.0},
+            "baja": {"temp": 0.0, "rain": 0.0, "rain24h": 0.0}
+        }
+    }
+
     for key, c in cuencas.items():
         om = fetch_openmeteo(c["lat"], c["lon"])
         wg = fetch_wunderground(c["station"])
 
-        if all(v is not None for v in om.values()):
-            append_csv(CSV_PATH, [now, key, "openmeteo", om["temp"], om["rain"], om["rain24h"]])
-        else:
-            print(f"[{key}] OpenMeteo incompleto: {om}")
+        data["historicalData"][key]["openmeteo"] = [{"timestamp": now, **om}]
+        data["historicalData"][key]["wunderground"] = [{"timestamp": now, **wg}]
 
-        if all(v is not None for v in wg.values()):
-            append_csv(CSV_PATH, [now, key, "wunderground", wg["temp"], wg["rain"], wg["rain24h"]])
-        else:
-            print(f"[{key}] Wunderground incompleto: {wg}")
+        if all(v is not None for v in om.values()) and all(v is not None for v in wg.values()):
+            corrected = {
+                "timestamp": now,
+                "temp": round((om["temp"] + wg["temp"]) / 2, 2),
+                "rain": round((om["rain"] + wg["rain"]) / 2, 2),
+                "rain24h": round((om["rain24h"] + wg["rain24h"]) / 2, 2)
+            }
+            data["historicalData"][key]["corrected"] = [corrected]
 
+            data["correctionFactors"][key] = {
+                "temp": round(corrected["temp"] - om["temp"], 2),
+                "rain": round(corrected["rain"] - om["rain"], 2),
+                "rain24h": round(corrected["rain24h"] - om["rain24h"], 2)
+            }
+        else:
+            data["historicalData"][key]["corrected"] = []
+
+    return data
+
+# 🧪 Ejecución directa (opcional)
 if __name__ == "__main__":
-    main()
+    result = fetch_and_process_data()
+    print(json.dumps(result, indent=2))
