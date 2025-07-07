@@ -211,3 +211,6 @@ def descargar_historico():
     else:
         return "Archivo no encontrado", 404
 
+@app.route("/")
+def index():
+    return send_from_directory(app.static_folder, "index.html")
