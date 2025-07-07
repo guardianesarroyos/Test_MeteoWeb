@@ -16,49 +16,49 @@ HISTORICO_CSV = "historico_meteo.csv"  # Nombre centralizado del archivo
 # 💾 Guardar en CSV histórico
 def append_to_historic_csv(data):
     csv_path = os.path.join(DATA_DIR, HISTORICO_CSV)
-    file_exists = os.path.isfile(csv_path)
 
     try:
-        with open(csv_path, "a", newline="", encoding="utf-8") as f:
+        timestamp = data.get("timestamp")
+        dt = datetime.fromisoformat(timestamp)
+        fecha = dt.strftime("%Y-%m-%d")
+        hora = dt.strftime("%H:%M")
+
+        filas = []
+
+        # Factores de corrección primero
+        correction_factors = data.get("correctionFactors", {})
+        for cuenca in ["alta", "media", "baja"]:
+            factores = correction_factors.get(cuenca, {"temp": "", "rain": "", "rain24h": ""})
+            filas.append([
+                fecha, hora, cuenca, "Factor de Corrección",
+                "", "", "",
+                factores.get("temp", ""),
+                factores.get("rain", ""),
+                factores.get("rain24h", "")
+            ])
+
+        # Luego datos meteorológicos
+        for cuenca in ["alta", "media", "baja"]:
+            cuenca_data = data.get("historicalData", {}).get(cuenca, {})
+            for servicio in ["openmeteo", "wunderground", "corrected"]:
+                for punto in cuenca_data.get(servicio, []):
+                    filas.append([
+                        fecha, hora, cuenca, servicio,
+                        punto.get("temp", ""),
+                        punto.get("rain", ""),
+                        punto.get("rain24h", ""),
+                        "", "", ""
+                    ])
+
+        # Escribir archivo completo (sobrescribe)
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow([
-                    "fecha_hora", "cuenca", "servicio",
-                    "temp", "rain", "rain24h",
-                    "factor_temp", "factor_rain", "factor_rain24h"
-                ])
+            writer.writerow([
+                "Fecha", "Hora", "Cuenca", "Servicio", "Temperatura",
+                "Lluvia Hoy", "Lluvia 24h", "Factor Temp", "Factor Lluvia", "Factor Total"
+            ])
+            writer.writerows(filas)
 
-            timestamp = data.get("timestamp")
-            dt = datetime.fromisoformat(timestamp)
-            fecha_hora = dt.strftime("%d/%m %H:%M")
-
-            correction_factors = data.get("correctionFactors", {})
-
-            for cuenca in ["alta", "media", "baja"]:
-                cuenca_data = data.get("historicalData", {}).get(cuenca, {})
-                factors = correction_factors.get(cuenca, {"temp": "", "rain": "", "rain24h": ""})
-
-                for servicio in ["openmeteo", "wunderground", "corrected"]:
-                    for punto in cuenca_data.get(servicio, []):
-                        row = [
-                            fecha_hora,
-                            cuenca,
-                            servicio,
-                            punto.get("temp", "N/D"),
-                            punto.get("rain", "N/D"),
-                            punto.get("rain24h", "N/D"),
-                        ]
-
-                        if servicio == "corrected":
-                            row += [
-                                factors.get("temp", ""),
-                                factors.get("rain", ""),
-                                factors.get("rain24h", "")
-                            ]
-                        else:
-                            row += ["", "", ""]
-
-                        writer.writerow(row)
     except Exception as e:
         print(f"Error escribiendo en CSV histórico: {e}")
 
