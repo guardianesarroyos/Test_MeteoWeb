@@ -219,6 +219,18 @@ def descargar_historico():
 @app.route("/")
 def index():
     return send_from_directory(app.static_folder, "index.html")
+
+@app.route("/update", methods=["GET"])
+def update():
+    try:
+        from fetch_meteo import fetch_and_process_data  # Asegurate de tener esta función en fetch_meteo.py
+        data = fetch_and_process_data()
+        result = save_data(data)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
 @app.route("/ascii-to-excel", methods=["POST"])
 def ascii_to_excel():
     try:
