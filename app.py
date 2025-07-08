@@ -230,6 +230,20 @@ def listar_archivos():
     except Exception as e:
         return jsonify({"error": str(e)})
 
+@app.route("/ver-csv/<nombre_archivo>")
+def ver_csv(nombre_archivo):
+    try:
+        ruta = os.path.join(DATA_DIR, nombre_archivo)
+        if not os.path.exists(ruta):
+            return jsonify({"error": "Archivo no encontrado"}), 404
+
+        with open(ruta, "r", encoding="utf-8") as f:
+            contenido = f.read()
+
+        return make_response(contenido, 200, {"Content-Type": "text/plain"})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
 @app.route("/")
 def index():
     return send_from_directory(app.static_folder, "index.html")
