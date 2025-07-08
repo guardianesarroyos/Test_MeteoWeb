@@ -285,9 +285,6 @@ def verificar_backup():
     return jsonify(stats)
 
 # 🚀 Ejecutar servidor
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
 
 @app.route("/post-datos-desde-google", methods=["POST"])
 def post_datos_desde_google():
@@ -323,3 +320,6 @@ def post_datos_desde_google():
         return jsonify({"success": True, "message": "Datos simulados guardados correctamente"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+    if __name__ == "__main__":
+        port = int(os.environ.get("PORT", 8080))
+        app.run(host="0.0.0.0", port=port)
