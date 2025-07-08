@@ -90,6 +90,27 @@ def fetch_and_process_data():
 
     return data
 
+# 📝 Guardar datos en CSV
+def save_to_csv(data):
+    rows = []
+    for cuenca, fuentes in data["historicalData"].items():
+        for fuente, registros in fuentes.items():
+            for r in registros:
+                rows.append({
+                    "timestamp": r["timestamp"],
+                    "cuenca": cuenca,
+                    "source": fuente,
+                    "temp": r.get("temp"),
+                    "rain": r.get("rain"),
+                    "rain24h": r.get("rain24h")
+                })
+
+    if rows:
+        with open(CSV_PATH, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["timestamp", "cuenca", "source", "temp", "rain", "rain24h"])
+            writer.writeheader()
+            writer.writerows(rows)
+
 # 🧪 Ejecución directa (opcional)
 if __name__ == "__main__":
     result = fetch_and_process_data()

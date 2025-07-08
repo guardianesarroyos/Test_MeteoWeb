@@ -233,6 +233,16 @@ def post_datos_desde_google():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
+from fetch_meteo import fetch_and_process_data, save_to_csv  # asegurate de importar ambas funciones
+
+@app.route("/update", methods=["GET"])
+def update():
+    try:
+        data = fetch_and_process_data()
+        save_to_csv(data)
+        return jsonify({"success": True, "message": "Datos actualizados y guardados en CSV"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 # ==============================================
 # 🔄 ENDPOINTS PARA ALMACENAMIENTO EXTERNO
 # ==============================================
