@@ -221,34 +221,30 @@ def descargar_historico():
 def index():
     return send_from_directory(app.static_folder, "index.html")
 
-@app.route("/update", methods=["GET"])
-def update():
+# ✅ Vinculación real con fetch_meteo
+from fetch_meteo import fetch_and_process_data
+
+@app.route("/post-datos-desde-google", methods=["POST"])
+def post_datos_desde_google():
     try:
-        from fetch_meteo import fetch_and_process_data  # Asegurate de tener esta función en fetch_meteo.py
         data = fetch_and_process_data()
-        result = save_data(data)
-        return jsonify(result)
+        save_data(data)
+        return jsonify({"success": True, "message": "Datos reales guardados correctamente"})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return jsonify({"success": False, "error": str(e)})
 
 # ==============================================
-# 🔄 NUEVOS ENDPOINTS PARA ALMACENAMIENTO EXTERNO
+# 🔄 ENDPOINTS PARA ALMACENAMIENTO EXTERNO
 # ==============================================
 
 @app.route("/backup-historico", methods=["GET"])
 def backup_historico():
-    """Endpoint optimizado para Google Script"""
     try:
         csv_path = os.path.join(DATA_DIR, HISTORICO_CSV)
-        
-        # Verificar si el archivo existe y tiene contenido
         if not os.path.exists(csv_path):
             return jsonify({"success": False, "message": "Archivo histórico no encontrado"}), 404
-            
         if os.path.getsize(csv_path) == 0:
             return jsonify({"success": False, "message": "Archivo histórico vacío"}), 400
-            
-        # Enviar con nombre consistente y timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         return send_file(
             csv_path,
@@ -256,22 +252,18 @@ def backup_historico():
             download_name=f"meteo_backup_{timestamp}.csv",
             mimetype="text/csv"
         )
-        
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route("/verificar-backup", methods=["GET"])
 def verificar_backup():
-    """Para diagnóstico del sistema de backup"""
     csv_path = os.path.join(DATA_DIR, HISTORICO_CSV)
-    
     if not os.path.exists(csv_path):
         return jsonify({
             "success": False,
             "exists": False,
             "message": "Archivo histórico no encontrado"
         }), 404
-        
     stats = {
         "success": True,
         "exists": True,
@@ -281,47 +273,9 @@ def verificar_backup():
         ).isoformat(),
         "lines": sum(1 for _ in open(csv_path, 'r', encoding='utf-8'))
     }
-    
     return jsonify(stats)
 
 # 🚀 Ejecutar servidor
-
-@app.route("/post-datos-desde-google", methods=["POST"])
-def post_datos_desde_google():
-    try:
-        now = datetime.now().isoformat()
-        data = {
-            "timestamp": now,
-            "historicalData": {
-                "alta": {
-                    "openmeteo": [{"temp": 12.5, "rain": 2.0, "rain24h": 5.0}],
-                    "wunderground": [{"temp": 13.0, "rain": 2.2, "rain24h": 5.3}],
-                    "corrected": [{"temp": 12.8, "rain": 2.1, "rain24h": 5.1}]
-                },
-                "media": {
-                    "openmeteo": [{"temp": 11.0, "rain": 1.8, "rain24h": 4.5}],
-                    "wunderground": [{"temp": 11.3, "rain": 1.9, "rain24h": 4.7}],
-                    "corrected": [{"temp": 11.2, "rain": 1.85, "rain24h": 4.6}]
-                },
-                "baja": {
-                    "openmeteo": [{"temp": 10.5, "rain": 1.5, "rain24h": 4.0}],
-                    "wunderground": [{"temp": 10.8, "rain": 1.6, "rain24h": 4.2}],
-                    "corrected": [{"temp": 10.7, "rain": 1.55, "rain24h": 4.1}]
-                }
-            },
-            "correctionFactors": {
-                "alta": {"temp": 0.5, "rain": 0.1, "rain24h": 0.2},
-                "media": {"temp": 0.4, "rain": 0.1, "rain24h": 0.2},
-                "baja": {"temp": 0.3, "rain": 0.1, "rain24h": 0.2}
-            }
-        }
-
-        save_data(data)
-        return jsonify({"success": True, "message": "Datos simulados guardados correctamente"})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-# 🚀 Ejecutar servidor (fuera del try, sin indentación extra)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
