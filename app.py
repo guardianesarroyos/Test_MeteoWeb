@@ -217,6 +217,19 @@ def descargar_historico():
     else:
         return "Archivo no encontrado", 404
 
+@app.route("/archivos", methods=["GET"])
+def listar_archivos():
+    try:
+        archivos = []
+        for nombre in os.listdir(DATA_DIR):
+            ruta = os.path.join(DATA_DIR, nombre)
+            if os.path.isfile(ruta):
+                tamaño = os.path.getsize(ruta)
+                archivos.append({"nombre": nombre, "tamaño_bytes": tamaño})
+        return jsonify({"archivos": archivos})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
 @app.route("/")
 def index():
     return send_from_directory(app.static_folder, "index.html")
