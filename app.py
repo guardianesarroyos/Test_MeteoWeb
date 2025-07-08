@@ -73,20 +73,22 @@ def save_data(data):
         filename = f"meteo_{date.year}-{date.month:02d}-{date.day:02d}.json"
         filepath = os.path.join(DATA_DIR, filename)
 
-        existing = []
-        if os.path.exists(filepath):
-            with open(filepath, 'r', encoding='utf-8') as f:
-                existing = json.load(f)
+        # Guardar datos diarios en archivo JSON
+existing = []
+if os.path.exists(filepath):
+    with open(filepath, 'r', encoding='utf-8') as f:
+        existing = json.load(f)
 
-        existing.append(data)
+existing.append(data)
 
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(existing, f, indent=2)
+with open(filepath, 'w', encoding='utf-8') as f:
+    json.dump(existing, f, indent=2)
 
-        append_to_historic_csv(data)
-        return {'success': True}
-    except Exception as e:
-        return {'success': False, 'message': str(e)}
+# Agregar datos al CSV histórico (sin sobrescribir)
+append_to_historic_csv(data)
+
+return {'success': True}
+
 
 # 📤 Cargar datos históricos
 def load_data():
