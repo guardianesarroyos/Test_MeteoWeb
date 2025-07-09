@@ -97,24 +97,51 @@ def fetch_and_process_data():
 
     return data
 
-# 📝 Guardar datos en CSV
+# 📝 Guardar datos en CSV (MODIFICADO)
 def save_to_csv(data):
     rows = []
+
+    # Añadir filas de datos meteorológicos (openmeteo, wunderground, corrected)
     for cuenca, fuentes in data["historicalData"].items():
         for fuente, registros in fuentes.items():
             for r in registros:
                 rows.append({
                     "timestamp": r["timestamp"],
                     "cuenca": cuenca,
-                    "source": fuente,
+                    "servicio": fuente,  # Cambiado de 'source' a 'servicio'
                     "temp": r.get("temp"),
                     "rain": r.get("rain"),
-                    "rain24h": r.get("rain24h")
+                    "rain24h": r.get("rain24h"),
+                    "factor_temp": "",  # Vacío para estas filas
+                    "factor_rain": "",
+                    "factor_rain24h": ""
                 })
 
+    # Añadir filas de Factores de Corrección
+    for cuenca in ["alta", "media", "baja"]:
+        factors = data.get("correctionFactors", {}).get(cuenca, {})
+        # Solo añadir la fila de factor si hay valores válidos
+        if any(v is not None for v in factors.values()):
+            rows.append({
+                "timestamp": data["timestamp"],
+                "cuenca": cuenca,
+                "servicio": "Factor de Corrección",
+                "temp": "",
+                "rain": "",
+                "rain24h": "",
+                "factor_temp": factors.get("temp", ""),
+                "factor_rain": factors.get("rain", ""),
+                "factor_rain24h": factors.get("rain24h", "")
+            })
+
     if rows:
-        with open(CSV_PATH, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["timestamp", "cuenca", "source", "temp", "rain", "rain24h"])
+        # Definir los nombres de los encabezados en el orden deseado
+        fieldnames = [
+            "timestamp", "cuenca", "servicio", "temp", "rain", "rain24h",
+            "factor_temp", "factor_rain", "factor_rain24h"
+        ]
+        with open(CSV_PATH, "w", newline="", encoding="utf-8") as f: # Añadido encoding
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)
 
