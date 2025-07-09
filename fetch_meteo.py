@@ -23,7 +23,14 @@ cuencas = {
 }
 
 # 🔑 API de Wunderground
-WUNDERGROUND_API_KEY = "6532d6454b8aa370768e63d6ba5a832e"
+# La API Key se obtiene de una variable de entorno por seguridad
+WUNDERGROUND_API_KEY = os.environ.get("WUNDERGROUND_API_KEY")
+
+# Si la clave no está configurada, puedes añadir un mensaje de advertencia o un valor por defecto
+if not WUNDERGROUND_API_KEY:
+    print("ADVERTENCIA: La variable de entorno WUNDERGROUND_API_KEY no está configurada.")
+    # Considera aquí cómo quieres manejar esta situación, por ejemplo:
+    # WUNDERGROUND_API_KEY = "tu_clave_de_desarrollo_aqui_solo_para_pruebas_locales"
 
 # 🌤️ Consulta Open-Meteo
 def fetch_openmeteo(lat, lon):
