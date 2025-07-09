@@ -3,9 +3,10 @@ import csv
 import os
 from datetime import datetime
 
-from datetime import datetime
+os.makedirs("static", exist_ok=True)
 
-with open("cron_log.txt", "a") as f:
+# Guardar el log dentro de static
+with open("static/cron_log.txt", "a") as f:
     f.write(f"Cron ejecutado a las {datetime.now()}\n")
 
 
