@@ -13,15 +13,15 @@ DATA_DIR = 'DATA'
 os.makedirs(DATA_DIR, exist_ok=True)
 HISTORICO_CSV = "historico_meteo.csv"  # Nombre centralizado del archivo
 
-# 💾 Guardar en CSV histórico
+# 💾 Guardar en CSV histórico con nombre único
 def append_to_historic_csv(data):
-    csv_path = os.path.join(DATA_DIR, HISTORICO_CSV)
-
     try:
         timestamp = data.get("timestamp")
         dt = datetime.fromisoformat(timestamp)
         fecha = dt.strftime("%Y-%m-%d")
         hora = dt.strftime("%H:%M")
+        nombre_archivo = f"historico_meteo_{dt.strftime('%y%m%d_%H%M')}.csv"
+        csv_path = os.path.join(DATA_DIR, nombre_archivo)
 
         filas = []
 
@@ -49,6 +49,22 @@ def append_to_historic_csv(data):
                         punto.get("rain24h", ""),
                         "", "", ""
                     ])
+
+        # Escribir archivo CSV
+        with open(csv_path, mode="w", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file)
+            writer.writerow([
+                "fecha", "hora", "cuenca", "servicio",
+                "temp", "rain", "rain24h",
+                "factor_temp", "factor_rain", "factor_rain24h"
+            ])
+            writer.writerows(filas)
+
+        print(f"✅ CSV generado: {nombre_archivo}")
+
+    except Exception as e:
+        print(f"❌ Error al escribir CSV: {e}")
+
 
         # Escribir archivo completo (sobrescribe)
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
