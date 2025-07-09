@@ -101,7 +101,7 @@
   <script src="/static/config.js"></script>
 </head>
 <body>
-  <h1>MONITOR METEOROLÓGICO "R" INTELIGENTE</h1>
+  <h1>MONITOR METEO MIMICROCLIMA</h1>
   <h2>Comparación Wunderground vs Open-Meteo</h2>
 
   <div id="server-status" class="server-info">
@@ -128,7 +128,7 @@
 
   <script>
     // Configuración
-    const UPDATE_INTERVAL = 60 * 60 * 1000; // 1 hora
+        const UPDATE_INTERVAL = 60 * 60 * 1000; // 1 hora
 
     // Estructuras de datos
     const cuencas = {
@@ -238,6 +238,46 @@
       }
     }
 
+    async function loadDataFromServer() {
+      try {
+        const response = await fetch(SERVER_ENDPOINT + '?action=load');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            historicalData = data.historicalData || historicalData;
+            correctionFactors = data.correctionFactors || correctionFactors;
+            console.log('Datos cargados desde el servidor');
+          }
+        }
+      } catch (error) {
+        console.error('Error loading data from server:', error);
+      }
+    }
+
+    async function saveDataToServer() {
+      try {
+        const dataToSave = {
+          timestamp: new Date().toISOString(),
+          historicalData: historicalData,
+          correctionFactors: correctionFactors
+        };
+        
+        const response = await fetch(SERVER_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dataToSave)
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (!result.success) {
+            console.error('Error al guardar en servidor:', result.message);
+          }
+        }
+      } catch (error) {
+        console.error('Error saving to server:', error);
+      }
+    }
     async function updateAll() {
       updateLastUpdated();
       const now = new Date();
@@ -285,6 +325,8 @@
         historicalData[key].wunderground.push({ timestamp: now, ...wg });
         historicalData[key].corrected.push({ timestamp: now, ...corr });
       }
+
+      await saveDataToServer();
     }
 
     function exportToCSV() {
@@ -360,6 +402,13 @@
     // Inicialización
     document.addEventListener("DOMContentLoaded", async () => {
       updateTable();
+
+      const serverOnline = await checkServerStatus();
+
+      if (serverOnline) {
+        await loadDataFromServer();
+      }
+
       await updateAll();
       setInterval(updateAll, UPDATE_INTERVAL);
     });
