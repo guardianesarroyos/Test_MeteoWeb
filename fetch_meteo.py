@@ -3,6 +3,12 @@ import csv
 import os
 from datetime import datetime
 
+from datetime import datetime
+
+with open("cron_log.txt", "a") as f:
+    f.write(f"Cron ejecutado a las {datetime.now()}\n")
+
+
 # 📁 Configuración de carpeta de datos
 DATA_DIR = os.path.join(os.path.dirname(__file__), "DATA")
 os.makedirs(DATA_DIR, exist_ok=True)
