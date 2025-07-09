@@ -101,7 +101,7 @@
   <script src="/static/config.js"></script>
 </head>
 <body>
-  <h1>MONITOR METEO MIMICROCLIMA</h1>
+  <h1>MONITOR METEOROLÓGICO "R" INTELIGENTE</h1>
   <h2>Comparación Wunderground vs Open-Meteo</h2>
 
   <div id="server-status" class="server-info">
@@ -128,8 +128,8 @@
 
   <script>
     // Configuración
-      const SERVER_ENDPOINT = 'app.py'
-      const UPDATE_INTERVAL = 60 * 60 * 1000; // 1 hora
+    const SERVER_ENDPOINT = 'meteo_data.py';
+    const UPDATE_INTERVAL = 60 * 60 * 1000; // 1 hora
 
     // Estructuras de datos
     const cuencas = {
