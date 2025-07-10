@@ -4,3 +4,4 @@ flask
 schedule
 pandas
 openpyxl
+gunicorn
